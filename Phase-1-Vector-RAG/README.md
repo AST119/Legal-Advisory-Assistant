@@ -114,7 +114,7 @@ FASTAPI_URL=http://127.0.0.1:8000
 ### 4. Execution
 **Terminal 1 (Backend):**
 ```bash
-uv run uvicorn api.main:app --reload --port 8000
+uv run python uvicorn api.main:app --reload --port 8000
 ```
 
 **Terminal 2 (Frontend):**
