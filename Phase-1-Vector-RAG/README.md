@@ -30,6 +30,12 @@ legal_agent/
 ```
 
 ---
+![Project Architecture](architecture.png)
+---
+
+![Project Preview](ui_scr.png)
+
+---
 
 ## 🧩 Data Chunking Strategy
 
@@ -114,9 +120,7 @@ Open `http://127.0.0.1:5000` in your browser.
 - [ ] **OCR Integration:** Support for scanned/image-based legal documents.
 - [ ] **LlamaParse Integration:** For high-fidelity, layout-aware legal document parsing.
 
----
-![Project Preview](screenshot.jpg)
-*Figure 1: Knowledge Base Sidebar and Source Attribution in action.*
+
 
 ---
 *Disclaimer: This project is an AI tool for research and is not a substitute for professional legal advice.*
