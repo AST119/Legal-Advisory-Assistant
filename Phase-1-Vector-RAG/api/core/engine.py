@@ -6,11 +6,13 @@ from langchain_openrouter import ChatOpenRouter
 from langchain_core.messages import HumanMessage, SystemMessage, BaseMessage
 from api.core.database import get_vector_store
 
+# Define the state for the LangGraph workflow
 class AgentState(TypedDict):
     question: str
     context: str
     answer: str
     is_legal: bool
+    # History is annotated with operator.add so messages append automatically
     history: Annotated[List[BaseMessage], operator.add]
 
 class LegalEngine:
@@ -22,99 +24,118 @@ class LegalEngine:
             temperature=0.1
         )
 
-    def retrieve(self, state: AgentState):
-        """
-        Step 1: Always retrieve context first so we know what the document is about.
-        """
-        docs = self.db.similarity_search(state["question"], k=6)
-        
-        # Check if database is empty
-        if not docs:
-            return {"context": "EMPTY_DB", "is_legal": False}
-
-        context_list = []
-        for d in docs:
-            source_file = d.metadata.get("source", "Unknown Document")
-            context_list.append(f"[SOURCE: {source_file}]\nCONTENT: {d.page_content}")
-            
-        return {"context": "\n\n---\n\n".join(context_list)}
-
     def validate_intent(self, state: AgentState):
         """
-        Step 2: Check if the QUESTION is legal OR if the DOCUMENT being summarized is legal.
+        GUARDRAIL: Determines if the query is legal-related.
+        This allows general legal questions even without uploaded documents.
         """
-        if state["context"] == "EMPTY_DB":
-            return {"is_legal": False, "answer": "No documents found. Please upload a file first."}
-
         validation_prompt = [
             SystemMessage(content=(
-                "You are a legal document classifier. Analyze the user's question and the provided document snippets. "
-                "Determine if the user is asking a legal question OR asking to summarize/analyze a legal document. "
-                "Legal documents include contracts, NDAs, court papers, statutes, policies, and regulations. "
-                "Respond with exactly one word: 'LEGAL' if the context OR question is law-related, 'OTHER' otherwise."
+                "You are a legal intent classifier. Your job is to determine if a user's question "
+                "is related to law, legal concepts, regulations, or document analysis. "
+                "Respond with exactly one word: 'LEGAL' or 'OTHER'. "
+                "Examples of LEGAL: 'What is a contract?', 'Summarize my file', 'How does IP law work?'. "
+                "Examples of OTHER: 'What is the weather?', 'How to bake a cake?', 'Who won the game?'."
             )),
-            HumanMessage(content=f"USER QUESTION: {state['question']}\n\nDOCUMENT SNIPPETS: {state['context'][:2000]}")
+            HumanMessage(content=state["question"])
         ]
         
         response = self.llm.invoke(validation_prompt)
         decision = response.content.strip().upper()
-        
-        is_legal = "LEGAL" in decision
-        return {"is_legal": is_legal}
+        return {"is_legal": "LEGAL" in decision}
 
-    def out_of_scope_response(self, state: AgentState):
-        """Node for non-legal or empty-db cases"""
-        # If we already set an answer (like 'No documents found'), use it.
-        msg = state.get("answer") or "I am a specialized Legal Advisory Agent. This document or question does not appear to be legal in nature."
-        return {
-            "answer": msg,
-            "history": [HumanMessage(content=state["question"])]
-        }
+    def retrieve(self, state: AgentState):
+        """
+        RETRIEVAL: Fetches context if documents exist. 
+        If no documents are indexed, it passes a flag to the generator.
+        """
+        try:
+            # Check if the database has any documents
+            # Note: _collection.count() is a standard way to check Chroma status
+            if self.db._collection.count() == 0:
+                return {"context": "DIRECT_KNOWLEDGE_MODE"}
+
+            docs = self.db.similarity_search(state["question"], k=6)
+            
+            if not docs:
+                return {"context": "NO_RELEVANT_CHUNKS"}
+
+            context_list = []
+            for d in docs:
+                source_file = d.metadata.get("source", "Unknown Document")
+                context_list.append(f"[SOURCE: {source_file}]\nCONTENT: {d.page_content}")
+            
+            return {"context": "\n\n---\n\n".join(context_list)}
+        except Exception:
+            # Fallback if DB isn't initialized or accessible
+            return {"context": "DIRECT_KNOWLEDGE_MODE"}
 
     def generate(self, state: AgentState):
-        """Step 3: Generate the answer (Summary or Q&A)"""
-        system_prompt = SystemMessage(content=(
-            "You are a professional Legal Advisory AI. "
-            "If the user asks for a summary, provide a concise but comprehensive overview of the key legal points. "
-            "If the user asks a specific question, answer it using the context. "
-            "ALWAYS cite the [SOURCE: filename]. Use Markdown."
-        ))
+        """
+        GENERATION: Smart switching between RAG (document-based) and General Advisory.
+        """
+        ctx = state.get("context", "")
         
-        messages = [system_prompt] + state.get("history", [])
-        messages.append(HumanMessage(content=f"CONTEXT:\n{state['context']}\n\nQUESTION: {state['question']}"))
+        if ctx == "DIRECT_KNOWLEDGE_MODE" or ctx == "NO_RELEVANT_CHUNKS":
+            # Mode: General Legal Advice
+            system_instruction = (
+                "You are a professional Legal Advisory AI. Currently, there is no specific document context "
+                "available to answer this question. \n\n"
+                "INSTRUCTION: Answer the question using your internal legal knowledge. "
+                "Clearly state that your answer is based on general legal principles and not on a specific uploaded document. Use Markdown for formatting."
+            )
+        else:
+            # Mode: Document RAG
+            system_instruction = (
+                "You are a professional Legal Advisory AI analyzing uploaded documents. \n\n"
+                "INSTRUCTION: Use the provided context to answer. ALWAYS cite the [SOURCE: filename] "
+                "provided in the context for every claim you make. Use Markdown for formatting."
+            )
+
+        messages = [SystemMessage(content=system_instruction)] + state.get("history", [])
+        messages.append(HumanMessage(content=f"CONTEXT:\n{ctx}\n\nUSER QUESTION: {state['question']}"))
         
         response = self.llm.invoke(messages)
+        
         return {
             "answer": response.content,
             "history": [HumanMessage(content=state["question"]), response]
         }
 
-    def intent_router(self, state: AgentState) -> Literal["generate", "out_of_scope"]:
-        """Routes based on the combined validation of doc + question"""
-        return "generate" if state["is_legal"] else "out_of_scope"
+    def out_of_scope_response(self, state: AgentState):
+        """Refusal for non-legal queries"""
+        return {
+            "answer": "I am a specialized Legal Advisory Agent. I can only assist with law-related queries or document analysis. Please ask a legal question.",
+            "history": [HumanMessage(content=state["question"])]
+        }
+
+    def intent_router(self, state: AgentState) -> Literal["retrieve", "out_of_scope"]:
+        """Routes based on the validation node results"""
+        return "retrieve" if state["is_legal"] else "out_of_scope"
 
     def build_graph(self):
+        """Constructs the LangGraph state machine"""
         workflow = StateGraph(AgentState)
         
-        # Nodes
-        workflow.add_node("retrieve", self.retrieve)
+        # Add Nodes
         workflow.add_node("validate_intent", self.validate_intent)
+        workflow.add_node("retrieve", self.retrieve)
         workflow.add_node("generate", self.generate)
         workflow.add_node("out_of_scope", self.out_of_scope_response)
         
-        # Workflow: Start -> Retrieve -> Validate -> Route
-        workflow.set_entry_point("retrieve")
-        workflow.add_edge("retrieve", "validate_intent")
+        # Set Flow
+        workflow.set_entry_point("validate_intent")
         
         workflow.add_conditional_edges(
             "validate_intent",
             self.intent_router,
             {
-                "generate": "generate",
+                "retrieve": "retrieve",
                 "out_of_scope": "out_of_scope"
             }
         )
         
+        workflow.add_edge("retrieve", "generate")
         workflow.add_edge("generate", END)
         workflow.add_edge("out_of_scope", END)
         
