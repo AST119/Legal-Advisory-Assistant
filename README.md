@@ -4,6 +4,8 @@
 
 A modular, graph-based RAG (Retrieval-Augmented Generation) system designed for high-precision legal document analysis. This agent uses **FastAPI** for core AI logic, **Flask** for the user interface, and **LangGraph** to manage complex decision-making workflows.
 
+
+[Live Demo](https://huggingface.co/spaces/AadityaSinghTariyal/legal-advisory-agent)
 ![Project Status](https://img.shields.io/badge/Status-Phase_1_Complete-green)
 ![Tech Stack](https://img.shields.io/badge/Stack-FastAPI%20%7C%20Flask%20%7C%20LangGraph-blue)
 
