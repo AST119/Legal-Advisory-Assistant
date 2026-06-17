@@ -36,7 +36,10 @@ class LegalEngine:
             context_list = []
             for d in docs:
                 source_file = d.metadata.get("source", "Unknown Document")
-                context_list.append(f"[SOURCE: {source_file}]\nCONTENT: {d.page_content}")
+                page_num = d.metadata.get("page", "N/A")
+                if isinstance(page_num, int): page_num += 1 
+                
+                context_list.append(f"[SOURCE: {source_file}, PAGE: {page_num}]\nCONTENT: {d.page_content}")
                 
             return {"context": "\n\n---\n\n".join(context_list)}
         except:
@@ -72,7 +75,7 @@ class LegalEngine:
         system_prompt_content = (
             "You are a professional Legal Advisory AI. \n\n"
             "GUIDELINES:\n"
-            "1. If relevant context is provided, use it and cite the [SOURCE: filename].\n"
+            "1. If relevant context is provided, use it and ALWAYS cite using the [SOURCE: filename, PAGE: number] format.\n"
             "2. If no context is provided, or the context is not relevant to the question, "
             "answer the question using your internal legal knowledge.\n"
             "3. If answering from internal knowledge, provide a general legal disclaimer "
