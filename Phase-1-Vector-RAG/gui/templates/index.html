@@ -185,7 +185,7 @@
         toggleLoading(true);
 
         try {
-            const res = await fetch('/ask', {
+            const res = await fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: question, session_id: 'legal_session_1' })
