@@ -19,7 +19,8 @@ class LegalEngine:
         self.llm = ChatOpenRouter(
             model="openai/gpt-oss-120b:free",
             openrouter_api_key=os.getenv("OPENROUTER_API_KEY"),
-            temperature=0.1
+            temperature=0.1,
+            streaming=True
         )
 
     def retrieve(self, state: AgentState):
