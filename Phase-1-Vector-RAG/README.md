@@ -22,7 +22,6 @@ legal_agent/
 │       ├── engine.py       # LangGraph Orchestration & Guardrails
 │       └── processor.py    # Document Parsing Logic
 ├── gui/                    # Frontend (The Face)
-│   ├── app.py              # Flask Web Server
 │   └── templates/
 │       └── index.html      # Professional UI
 ├── vector_db/              # Persistent ChromaDB storage
