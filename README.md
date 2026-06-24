@@ -32,6 +32,9 @@ legal_agent/
 │       ├── database.py     # ChromaDB & Embeddings setup
 │       ├── engine.py       # LangGraph Orchestration & Guardrails
 │       └── processor.py    # Document Parsing Logic
+├── gui/                    # Frontend (The Face)
+│   └── templates/
+│       └── index.html      # Professional UI
 ├── vector_db/              # Persistent ChromaDB storage
 ├── uploads/                # Staging for processed documents
 ```
