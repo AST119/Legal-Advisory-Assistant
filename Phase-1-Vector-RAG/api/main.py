@@ -36,7 +36,15 @@ async def upload_file(file: UploadFile = File(...)):
 @app.post("/chat")
 async def chat(payload: dict = Body(...)):
     question = payload.get("question")
-    # LangGraph invocation
     graph = engine.build_graph()
-    result = graph.invoke({"question": question, "history": []})
-    return {"answer": result["answer"]}
+    inputs = {"question": question, "history": []}
+
+    async def stream_generator():
+        async for event in graph.astream_events(inputs, version="v2"):
+            # Only stream tokens from the 'generate' node
+            if event["event"] == "on_chat_model_stream":
+                content = event["data"]["chunk"].content
+                if content:
+                    yield content
+
+    return StreamingResponse(stream_generator(), media_type="text/plain")
