@@ -27,15 +27,11 @@ legal_agent/
 ├── .env                    # API Keys & Configuration
 ├── pyproject.toml          # uv dependency management
 ├── api/                    # Backend (The Brain)
-│   ├── main.py             # FastAPI entry point
+│   ├── main.py             # FastAPI entry point handles both frontent and backend
 │   └── core/
 │       ├── database.py     # ChromaDB & Embeddings setup
 │       ├── engine.py       # LangGraph Orchestration & Guardrails
 │       └── processor.py    # Document Parsing Logic
-├── gui/                    # Frontend (The Face)
-│   ├── app.py              # Flask Web Server
-│   └── templates/
-│       └── index.html      # Professional UI
 ├── vector_db/              # Persistent ChromaDB storage
 ├── uploads/                # Staging for processed documents
 ```
@@ -109,12 +105,7 @@ uv sync
 uv run uvicorn api.main:app --reload --port 8000
 ```
 
-**Terminal 2 (Frontend):**
-```bash
-uv run python gui/app.py
-```
-
-Open `http://127.0.0.1:5000` in your browser.
+Open `http://127.0.0.1:8000` in your browser.
 
 ---
 
