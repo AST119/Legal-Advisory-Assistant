@@ -3,7 +3,8 @@ import shutil
 from fastapi import FastAPI, UploadFile, File, Body, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
+import json
 from dotenv import load_dotenv
 from api.core.processor import process_document
 from api.core.engine import LegalEngine
@@ -41,7 +42,6 @@ async def chat(payload: dict = Body(...)):
 
     async def stream_generator():
         async for event in graph.astream_events(inputs, version="v2"):
-            # Only stream tokens from the 'generate' node
             if event["event"] == "on_chat_model_stream":
                 content = event["data"]["chunk"].content
                 if content:
